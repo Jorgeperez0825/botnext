@@ -192,11 +192,22 @@ export class AITradingBot {
       console.log(analysisStart);
       await this.logToFile(analysisStart);
       
+      // Obtener datos de mercado
       const marketData = await this.cache.getMarketData(pair);
-      if (!marketData) {
+      console.log('📊 Datos de mercado obtenidos:', {
+        symbol: marketData?.symbol,
+        last_price: marketData?.last_price,
+        data_length: marketData?.data?.length
+      });
+
+      if (!marketData || !marketData.data || marketData.data.length === 0) {
         const noDataMsg = `❌ No hay datos de mercado disponibles para ${pair}`;
         console.log(noDataMsg);
         await this.logToFile(noDataMsg);
+        
+        // Intentar cargar datos históricos nuevamente
+        console.log('🔄 Intentando cargar datos históricos nuevamente...');
+        await this.cache.loadHistoricalData(pair, this.binanceClient);
         return null;
       }
 
@@ -393,14 +404,33 @@ export class AITradingBot {
         return 0.0;
       }
 
+      // Obtener historial de señales y trades
+      const signalHistory = await this.cache.getSignalHistory(data.symbol);
+      const tradeHistory = await this.cache.getTradeHistory(data.symbol);
+
       const prompt = `Analiza los siguientes datos de mercado de ${data.symbol} y devuelve un número entre -1 y 1 que represente el sentimiento:
 
-Datos técnicos:
+Datos técnicos actuales:
 - Precio actual: $${data.last_price.toFixed(2)}
 - Volumen 24h: ${data.data[data.data.length - 1].volume.toFixed(2)}
 - Cambio % 24h: ${((data.last_price - data.data[0].close) / data.data[0].close * 100).toFixed(2)}%
 - Máximo 24h: $${Math.max(...data.data.map(d => d.high)).toFixed(2)}
 - Mínimo 24h: $${Math.min(...data.data.map(d => d.low)).toFixed(2)}
+
+Historial de señales (últimas 5):
+${signalHistory.slice(-5).map(s => 
+  `- ${new Date(s.timestamp).toISOString()}: ${s.action} (confianza: ${(s.confidence * 100).toFixed(2)}%)`
+).join('\n')}
+
+Historial de operaciones (últimas 5):
+${tradeHistory.slice(-5).map(t => 
+  `- ${new Date(t.timestamp).toISOString()}: ${t.type} a $${t.price}`
+).join('\n')}
+
+Análisis de tendencia:
+- RSI: ${this.technicalAnalysis.getTechnicalScore(data).toFixed(2)}
+- Tendencia: ${this.technicalAnalysis.analyzeMarketCondition(data).trend}
+- Volatilidad: ${this.technicalAnalysis.analyzeMarketCondition(data).volatility.toFixed(2)}%
 
 Guía de sentimiento:
 -1.0 = Extremadamente bearish (vender inmediatamente)
@@ -417,14 +447,13 @@ Responde SOLO con el número, sin explicación ni texto adicional.`;
       console.log('📝 Prompt:', prompt);
 
       try {
-        const response = await this.anthropicClient.beta.messages.create({
+        const response = await this.anthropicClient.messages.create({
           model: "claude-3-opus-20240229",
           max_tokens: 1000,
           messages: [{
             role: "user",
             content: prompt
-          }],
-          temperature: 0.5
+          }]
         });
 
         if (!response || !response.content || response.content.length === 0) {

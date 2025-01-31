@@ -1,187 +1,165 @@
 import { initializeApp } from 'firebase/app';
 import { getDatabase, ref, set, get, child } from 'firebase/database';
 import { getAnalytics } from "firebase/analytics";
-import { MarketData, Candle } from '../types/trading';
+import { MarketData, Candle, Trade, TradeSignal } from '../types/trading';
 
 export class Cache {
   private db;
   private analytics;
   private readonly MAX_CANDLES = 1000;
+  private marketData: Map<string, MarketData>;
 
   constructor() {
-    // Configuración de Firebase
+    // Configurar Firebase
     const firebaseConfig = {
-      apiKey: "AIzaSyDOlIE4kN1_rE5VDGpFtzaBB5ZU3Zzr4qU",
-      authDomain: "botnext-e13e7.firebaseapp.com",
-      projectId: "botnext-e13e7",
-      storageBucket: "botnext-e13e7.firebasestorage.app",
-      messagingSenderId: "73447344157",
-      appId: "1:73447344157:web:083a42bb42421f44079ef4",
-      measurementId: "G-92JD2LY697",
-      databaseURL: "https://botnext-e13e7-default-rtdb.firebaseio.com"  // URL corregida
+      apiKey: process.env.FIREBASE_API_KEY,
+      authDomain: process.env.FIREBASE_AUTH_DOMAIN,
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+      messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
+      appId: process.env.FIREBASE_APP_ID,
+      databaseURL: process.env.FIREBASE_DATABASE_URL
     };
 
-    try {
-      // Inicializar Firebase
-      const app = initializeApp(firebaseConfig);
-      this.db = getDatabase(app);
-      
-      // Inicializar Analytics si estamos en el navegador
-      if (typeof window !== 'undefined') {
-        this.analytics = getAnalytics(app);
-        console.log('✅ Firebase Analytics inicializado');
-      }
-      
-      console.log('✅ Firebase inicializado correctamente');
-    } catch (error) {
-      console.error('❌ Error inicializando Firebase:', error);
-      throw error;
+    const app = initializeApp(firebaseConfig);
+    this.db = getDatabase(app);
+    this.marketData = new Map();
+    
+    // Inicializar Analytics si estamos en el navegador
+    if (typeof window !== 'undefined') {
+      this.analytics = getAnalytics(app);
+      console.log('✅ Firebase Analytics inicializado');
     }
+    
+    console.log('✅ Firebase inicializado correctamente');
   }
 
   public async loadHistoricalData(symbol: string, binanceClient: any): Promise<void> {
     try {
       console.log(`📊 Cargando datos históricos para ${symbol}...`);
       
-      // Intentar cargar desde Firebase primero
-      const cachedData = await this.loadFromFirebase(symbol);
+      // Obtener las últimas 120 velas de 1 minuto
+      const klines = await binanceClient.klines(symbol.replace('/', ''), '1m', { limit: 120 });
       
-      if (cachedData && cachedData.data.length > 0) {
-        console.log(`✅ Datos cargados desde caché para ${symbol}`);
-        return;
+      if (!klines.data || klines.data.length === 0) {
+        throw new Error('No se obtuvieron datos históricos');
       }
 
-      // Si no hay datos en caché, cargar desde Binance
-      const candles = await binanceClient.candles({
-        symbol: symbol.replace('/', ''),
-        interval: '1m',
-        limit: 120
-      });
+      console.log(`✅ ${klines.data.length} velas cargadas para ${symbol}`);
 
-      if (!candles || candles.length === 0) {
-        throw new Error('No se pudieron obtener datos históricos');
-      }
+      const candles = klines.data.map(k => ({
+        timestamp: k[0],
+        open: parseFloat(k[1]),
+        high: parseFloat(k[2]),
+        low: parseFloat(k[3]),
+        close: parseFloat(k[4]),
+        volume: parseFloat(k[5])
+      }));
 
       const marketData: MarketData = {
         symbol,
-        last_price: parseFloat(candles[candles.length - 1].close),
+        last_price: candles[candles.length - 1].close,
         last_update: Date.now(),
-        data: candles.map(candle => ({
-          timestamp: candle.openTime,
-          open: parseFloat(candle.open),
-          high: parseFloat(candle.high),
-          low: parseFloat(candle.low),
-          close: parseFloat(candle.close),
-          volume: parseFloat(candle.volume)
-        }))
+        data: candles
       };
 
-      // Guardar en Firebase
-      await this.saveToFirebase(symbol, marketData);
-      
-      console.log(`✅ ${candles.length} velas cargadas para ${symbol}`);
+      // Guardar en caché local
+      this.marketData.set(symbol, marketData);
 
+      // Guardar en Firebase
+      await this.saveMarketData(symbol, marketData);
+
+      console.log(`✅ Datos inicializados para ${symbol}`);
     } catch (error) {
       console.error(`❌ Error cargando datos históricos para ${symbol}:`, error);
       throw error;
     }
   }
 
-  private async saveToFirebase(symbol: string, data: MarketData): Promise<void> {
-    try {
-      const path = this.getSymbolPath(symbol);
-      await set(ref(this.db, path), {
-        ...data,
-        last_update: Date.now()
-      });
-    } catch (error) {
-      console.error(`❌ Error guardando en Firebase para ${symbol}:`, error);
-      throw error;
-    }
-  }
-
-  private async loadFromFirebase(symbol: string): Promise<MarketData | null> {
-    try {
-      const path = this.getSymbolPath(symbol);
-      const snapshot = await get(child(ref(this.db), path));
-      
-      if (snapshot.exists()) {
-        return snapshot.val();
-      }
-      
-      return null;
-    } catch (error) {
-      console.error(`❌ Error cargando desde Firebase para ${symbol}:`, error);
-      return null;
-    }
-  }
-
   public async getMarketData(symbol: string): Promise<MarketData | null> {
     try {
-      return await this.loadFromFirebase(symbol);
+      // Intentar obtener de caché local
+      let data = this.marketData.get(symbol);
+      
+      if (!data) {
+        // Si no está en caché local, intentar obtener de Firebase
+        console.log(`🔍 Buscando datos de ${symbol} en Firebase...`);
+        const snapshot = await get(child(ref(this.db), `market_data/${symbol.toLowerCase()}`));
+        
+        if (snapshot.exists()) {
+          data = snapshot.val();
+          this.marketData.set(symbol, data);
+          console.log(`✅ Datos de ${symbol} recuperados de Firebase`);
+        }
+      }
+
+      return data || null;
     } catch (error) {
       console.error(`❌ Error obteniendo datos de mercado para ${symbol}:`, error);
       return null;
     }
   }
 
-  public async updateMarketData(symbol: string, newCandle: Candle): Promise<void> {
+  public async updateMarketData(symbol: string, candle: any): Promise<void> {
     try {
-      const marketData = await this.getMarketData(symbol);
+      let data = this.marketData.get(symbol);
       
-      if (!marketData) {
-        // Crear nuevo registro si no existe
-        const newMarketData: MarketData = {
+      if (!data) {
+        data = {
           symbol,
-          last_price: newCandle.close,
+          last_price: candle.close,
           last_update: Date.now(),
-          data: [newCandle]
+          data: [candle]
         };
-        await this.saveToFirebase(symbol, newMarketData);
-        return;
+      } else {
+        data.last_price = candle.close;
+        data.last_update = Date.now();
+        data.data.push(candle);
+        
+        // Mantener solo las últimas 120 velas
+        if (data.data.length > 120) {
+          data.data = data.data.slice(-120);
+        }
       }
 
-      // Actualizar datos existentes
-      marketData.last_price = newCandle.close;
-      marketData.last_update = Date.now();
-      marketData.data.push(newCandle);
+      // Actualizar caché local
+      this.marketData.set(symbol, data);
 
-      // Mantener solo las últimas MAX_CANDLES velas
-      if (marketData.data.length > this.MAX_CANDLES) {
-        marketData.data = marketData.data.slice(-this.MAX_CANDLES);
-      }
-
-      await this.saveToFirebase(symbol, marketData);
-
+      // Guardar en Firebase
+      await this.saveMarketData(symbol, data);
     } catch (error) {
-      console.error(`❌ Error actualizando datos para ${symbol}:`, error);
-      throw error;
+      console.error(`❌ Error actualizando datos de mercado para ${symbol}:`, error);
     }
   }
 
-  private getSymbolPath(symbol: string): string {
-    return `market_data/${symbol.toLowerCase().replace('/', '_')}`;
-  }
-
-  // Métodos adicionales para trading
-
-  public async saveTradeHistory(trade: any): Promise<void> {
+  private async saveMarketData(symbol: string, data: MarketData): Promise<void> {
     try {
-      const path = `trades/${trade.symbol.toLowerCase()}/${trade.timestamp}`;
-      await set(ref(this.db, path), trade);
+      await set(ref(this.db, `market_data/${symbol.toLowerCase()}`), data);
     } catch (error) {
-      console.error('❌ Error guardando historial de trading:', error);
+      console.error(`❌ Error guardando datos en Firebase para ${symbol}:`, error);
+      throw error;
     }
   }
 
   public async saveSignalHistory(signal: any): Promise<void> {
     try {
-      const path = `signals/${signal.symbol.toLowerCase()}/${signal.timestamp}`;
-      await set(ref(this.db, path), signal);
+      const signalRef = ref(this.db, `signals/${signal.symbol.toLowerCase()}/${signal.timestamp}`);
+      await set(signalRef, signal);
     } catch (error) {
-      console.error('❌ Error guardando historial de señales:', error);
+      console.error('❌ Error guardando señal en Firebase:', error);
     }
   }
+
+  public async saveTradeHistory(trade: Trade): Promise<void> {
+    try {
+      const tradeRef = ref(this.db, `trades/${trade.symbol.toLowerCase()}/${trade.timestamp}`);
+      await set(tradeRef, trade);
+    } catch (error) {
+      console.error('❌ Error guardando operación en Firebase:', error);
+    }
+  }
+
+  // Métodos adicionales para trading
 
   public async getTradeHistory(symbol: string): Promise<any[]> {
     try {

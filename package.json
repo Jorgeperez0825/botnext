@@ -11,7 +11,7 @@
     "test-bot": "tsx src/scripts/test-bot.ts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.10.2",
+    "@anthropic-ai/sdk": "^0.36.3",
     "@binance/connector": "^3.6.1",
     "browserify-zlib": "^0.2.0",
     "crypto-browserify": "^3.12.1",
