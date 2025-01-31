@@ -1,4 +1,8 @@
+import { config } from 'dotenv';
 import { AITradingBot } from '../lib/trading/AITradingBot.js';
+
+// Cargar variables de entorno
+config();
 
 async function testBot() {
   try {

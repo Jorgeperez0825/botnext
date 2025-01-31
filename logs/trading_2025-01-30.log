@@ -506,3 +506,159 @@
 [2025-01-30T21:47:52.734Z] --------------------------------------------------
 ⏰ Esperando 1 minuto para el siguiente ciclo...
 
+[2025-01-30T21:48:14.195Z] 
+==================================================
+🔄 Iniciando nuevo ciclo de trading - 2025-01-30T21:48:14.195Z
+[2025-01-30T21:48:14.196Z] 
+--------------------------------------------------
+🔍 Analizando par BTC/USDT...
+[2025-01-30T21:48:14.249Z] 📊 Precio actual de BTC/USDT: $105084.79
+[2025-01-30T21:48:14.353Z] 📚 Libro de órdenes - Presión compradora: 41.51%, Presión vendedora: 58.49%
+[2025-01-30T21:48:14.354Z] 📈 Condición del mercado - Tendencia: bajista, Fuerza: 3.22%, Volatilidad: 0.06%
+[2025-01-30T21:48:14.357Z] 🤖 Sentimiento IA: 0.00 (Neutral)
+[2025-01-30T21:48:14.359Z] 🎯 Señal generada: ESPERAR con confianza 20.36%
+
+[2025-01-30T21:48:14.359Z] ❌ Error analizando BTC/USDT: TypeError: this.technicalAnalysis.getRSI is not a function
+[2025-01-30T21:48:14.359Z] 
+--------------------------------------------------
+🔍 Analizando par ETH/USDT...
+[2025-01-30T21:48:14.406Z] 📊 Precio actual de ETH/USDT: $3241.13
+[2025-01-30T21:48:14.442Z] 📚 Libro de órdenes - Presión compradora: 60.72%, Presión vendedora: 39.28%
+[2025-01-30T21:48:14.442Z] 📈 Condición del mercado - Tendencia: bajista, Fuerza: 3.36%, Volatilidad: 0.08%
+[2025-01-30T21:48:14.444Z] 🤖 Sentimiento IA: 0.00 (Neutral)
+[2025-01-30T21:48:14.445Z] 🎯 Señal generada: ESPERAR con confianza 15.28%
+
+[2025-01-30T21:48:14.445Z] ❌ Error analizando ETH/USDT: TypeError: this.technicalAnalysis.getRSI is not a function
+[2025-01-30T21:48:14.445Z] --------------------------------------------------
+⏰ Esperando 1 minuto para el siguiente ciclo...
+
+[2025-01-30T22:51:42.737Z] 
+==================================================
+🔄 Iniciando nuevo ciclo de trading - 2025-01-30T22:51:42.734Z
+[2025-01-30T22:51:42.741Z] 
+--------------------------------------------------
+🔍 Analizando par BTC/USDT...
+[2025-01-30T22:51:42.741Z] 📊 Precio actual de BTC/USDT: $104995.61
+[2025-01-30T22:51:42.853Z] 📚 Libro de órdenes - Presión compradora: 44.07%, Presión vendedora: 55.93%
+[2025-01-30T22:51:42.855Z] 📈 Condición del mercado - Tendencia: bajista, Fuerza: 11.73%, Volatilidad: 0.06%
+[2025-01-30T22:51:42.861Z] 🤖 Sentimiento IA: 0.00 (Neutral)
+[2025-01-30T22:51:42.863Z] 🎯 Señal generada: COMPRAR con confianza 34.11%
+
+[2025-01-30T22:51:42.863Z] 📊 Señal para BTC/USDT: COMPRAR (0.3410999282670316)
+[2025-01-30T22:51:42.863Z] 
+--------------------------------------------------
+🔍 Analizando par ETH/USDT...
+[2025-01-30T22:51:42.864Z] 📊 Precio actual de ETH/USDT: $3241.13
+[2025-01-30T22:51:42.900Z] 📚 Libro de órdenes - Presión compradora: 55.44%, Presión vendedora: 44.56%
+[2025-01-30T22:51:42.900Z] 📈 Condición del mercado - Tendencia: bajista, Fuerza: 5.49%, Volatilidad: 0.08%
+[2025-01-30T22:51:42.903Z] 🤖 Sentimiento IA: 0.00 (Neutral)
+[2025-01-30T22:51:42.903Z] 🎯 Señal generada: COMPRAR con confianza 40.53%
+
+[2025-01-30T22:51:42.904Z] 📊 Señal para ETH/USDT: COMPRAR (0.40530540021046235)
+[2025-01-30T22:51:42.904Z] --------------------------------------------------
+⏰ Esperando 1 minuto para el siguiente ciclo...
+
+[2025-01-30T23:07:46.471Z] 
+==================================================
+🔄 Iniciando nuevo ciclo de trading - 2025-01-30T23:07:46.471Z
+[2025-01-30T23:07:46.610Z] 
+--------------------------------------------------
+🔍 Analizando par BTC/USDT...
+[2025-01-30T23:07:46.611Z] 📊 Precio actual de BTC/USDT: $104995.61
+[2025-01-30T23:07:47.077Z] 📚 Libro de órdenes - Presión compradora: 50.00%, Presión vendedora: 50.00%
+[2025-01-30T23:07:47.078Z] 📈 Condición del mercado - Tendencia: bajista, Fuerza: 11.73%, Volatilidad: 0.06%
+[2025-01-30T23:07:47.079Z] 🤖 Sentimiento IA: 0.00 (Neutral)
+[2025-01-30T23:07:47.083Z] 🎯 Señal generada: COMPRAR con confianza 36.48%
+
+[2025-01-30T23:07:47.084Z] 📊 Señal para BTC/USDT: COMPRAR (0.3648041689339399)
+[2025-01-30T23:07:47.084Z] 
+--------------------------------------------------
+🔍 Analizando par ETH/USDT...
+[2025-01-30T23:07:47.084Z] 📊 Precio actual de ETH/USDT: $3241.13
+[2025-01-30T23:07:47.293Z] 📚 Libro de órdenes - Presión compradora: 55.35%, Presión vendedora: 44.65%
+[2025-01-30T23:07:47.294Z] 📈 Condición del mercado - Tendencia: bajista, Fuerza: 5.49%, Volatilidad: 0.08%
+[2025-01-30T23:07:47.295Z] 🤖 Sentimiento IA: 0.00 (Neutral)
+[2025-01-30T23:07:47.297Z] 🎯 Señal generada: COMPRAR con confianza 40.49%
+
+[2025-01-30T23:07:47.297Z] 📊 Señal para ETH/USDT: COMPRAR (0.4049404146475292)
+[2025-01-30T23:07:47.297Z] --------------------------------------------------
+⏰ Esperando 1 minuto para el siguiente ciclo...
+
+[2025-01-30T23:24:35.669Z] 
+==================================================
+🔄 Iniciando nuevo ciclo de trading - 2025-01-30T23:24:35.668Z
+[2025-01-30T23:24:35.669Z] 
+--------------------------------------------------
+🔍 Analizando par BTC/USDT...
+[2025-01-30T23:24:36.375Z] 📊 Precio actual de BTC/USDT: $105084.79
+[2025-01-30T23:24:36.573Z] 📚 Libro de órdenes - Presión compradora: 51.97%, Presión vendedora: 48.03%
+[2025-01-30T23:24:36.573Z] 📈 Condición del mercado - Tendencia: bajista, Fuerza: 3.22%, Volatilidad: 0.06%
+[2025-01-30T23:24:36.575Z] 🤖 Sentimiento IA: 0.00 (Neutral)
+[2025-01-30T23:24:36.578Z] 🎯 Señal generada: ESPERAR con confianza 16.17%
+
+[2025-01-30T23:24:36.578Z] ❌ Error analizando BTC/USDT: TypeError: this.technicalAnalysis.getRSI is not a function
+[2025-01-30T23:24:36.579Z] 
+--------------------------------------------------
+🔍 Analizando par ETH/USDT...
+[2025-01-30T23:24:36.644Z] 📊 Precio actual de ETH/USDT: $3241.13
+[2025-01-30T23:24:36.680Z] 📚 Libro de órdenes - Presión compradora: 54.07%, Presión vendedora: 45.93%
+[2025-01-30T23:24:36.680Z] 📈 Condición del mercado - Tendencia: bajista, Fuerza: 3.36%, Volatilidad: 0.08%
+[2025-01-30T23:24:36.681Z] 🤖 Sentimiento IA: 0.00 (Neutral)
+[2025-01-30T23:24:36.682Z] 🎯 Señal generada: ESPERAR con confianza 12.62%
+
+[2025-01-30T23:24:36.682Z] ❌ Error analizando ETH/USDT: TypeError: this.technicalAnalysis.getRSI is not a function
+[2025-01-30T23:24:36.682Z] --------------------------------------------------
+⏰ Esperando 1 minuto para el siguiente ciclo...
+
+[2025-01-30T23:41:23.008Z] 
+==================================================
+🔄 Iniciando nuevo ciclo de trading - 2025-01-30T23:41:23.006Z
+[2025-01-30T23:41:23.048Z] 
+--------------------------------------------------
+🔍 Analizando par BTC/USDT...
+[2025-01-30T23:41:25.710Z] 📊 Precio actual de BTC/USDT: $105084.79
+[2025-01-30T23:41:25.927Z] 📚 Libro de órdenes - Presión compradora: 48.11%, Presión vendedora: 51.89%
+[2025-01-30T23:41:25.928Z] 📈 Condición del mercado - Tendencia: bajista, Fuerza: 3.22%, Volatilidad: 0.06%
+[2025-01-30T23:41:25.934Z] 🤖 Sentimiento IA: 0.00 (Neutral)
+[2025-01-30T23:41:25.936Z] 🎯 Señal generada: ESPERAR con confianza 17.72%
+
+[2025-01-30T23:41:25.937Z] ❌ Error analizando BTC/USDT: TypeError: this.technicalAnalysis.getRSI is not a function
+[2025-01-30T23:41:25.937Z] 
+--------------------------------------------------
+🔍 Analizando par ETH/USDT...
+[2025-01-30T23:41:25.994Z] 📊 Precio actual de ETH/USDT: $3241.13
+[2025-01-30T23:41:26.040Z] 📚 Libro de órdenes - Presión compradora: 47.93%, Presión vendedora: 52.07%
+[2025-01-30T23:41:26.040Z] 📈 Condición del mercado - Tendencia: bajista, Fuerza: 3.36%, Volatilidad: 0.08%
+[2025-01-30T23:41:26.045Z] 🤖 Sentimiento IA: 0.00 (Neutral)
+[2025-01-30T23:41:26.047Z] 🎯 Señal generada: ESPERAR con confianza 10.17%
+
+[2025-01-30T23:41:26.048Z] ❌ Error analizando ETH/USDT: TypeError: this.technicalAnalysis.getRSI is not a function
+[2025-01-30T23:41:26.048Z] --------------------------------------------------
+⏰ Esperando 1 minuto para el siguiente ciclo...
+
+[2025-01-30T23:49:25.535Z] 
+==================================================
+🔄 Iniciando nuevo ciclo de trading - 2025-01-30T23:49:25.535Z
+[2025-01-30T23:49:25.596Z] 
+--------------------------------------------------
+🔍 Analizando par BTC/USDT...
+[2025-01-30T23:49:26.303Z] 📊 Precio actual de BTC/USDT: $105084.79
+[2025-01-30T23:49:26.536Z] 📚 Libro de órdenes - Presión compradora: 44.77%, Presión vendedora: 55.23%
+[2025-01-30T23:49:26.536Z] 📈 Condición del mercado - Tendencia: bajista, Fuerza: 3.22%, Volatilidad: 0.06%
+[2025-01-30T23:49:26.538Z] 🤖 Sentimiento IA: 0.00 (Neutral)
+[2025-01-30T23:49:26.540Z] 🎯 Señal generada: ESPERAR con confianza 19.06%
+
+[2025-01-30T23:49:26.541Z] ❌ Error analizando BTC/USDT: TypeError: this.technicalAnalysis.getRSI is not a function
+[2025-01-30T23:49:26.541Z] 
+--------------------------------------------------
+🔍 Analizando par ETH/USDT...
+[2025-01-30T23:49:26.586Z] 📊 Precio actual de ETH/USDT: $3241.13
+[2025-01-30T23:49:26.628Z] 📚 Libro de órdenes - Presión compradora: 45.63%, Presión vendedora: 54.37%
+[2025-01-30T23:49:26.629Z] 📈 Condición del mercado - Tendencia: bajista, Fuerza: 3.36%, Volatilidad: 0.08%
+[2025-01-30T23:49:26.629Z] 🤖 Sentimiento IA: 0.00 (Neutral)
+[2025-01-30T23:49:26.631Z] 🎯 Señal generada: ESPERAR con confianza 9.24%
+
+[2025-01-30T23:49:26.631Z] ❌ Error analizando ETH/USDT: TypeError: this.technicalAnalysis.getRSI is not a function
+[2025-01-30T23:49:26.631Z] --------------------------------------------------
+⏰ Esperando 1 minuto para el siguiente ciclo...
+

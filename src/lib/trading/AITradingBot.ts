@@ -1,4 +1,4 @@
-import Binance from 'binance-api-node';
+import { Spot } from '@binance/connector';
 import { Anthropic } from '@anthropic-ai/sdk';
 import { WebSocket } from 'ws';
 import {
@@ -18,7 +18,7 @@ import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 
 export class AITradingBot {
-  private binanceClient: ReturnType<typeof Binance>;
+  private binanceClient: Spot;
   private anthropicClient: Anthropic | null = null;
   private cache: Cache;
   private technicalAnalysis: TechnicalAnalysis;
@@ -76,13 +76,14 @@ export class AITradingBot {
 
   private initializeBinanceClient(): void {
     try {
-      this.binanceClient = Binance.default({
-        apiKey: process.env.BINANCE_API_KEY,
-        apiSecret: process.env.BINANCE_API_SECRET,
-        getTime: () => Date.now(),
-        httpBase: 'https://api.binance.us',
-        wsBase: 'wss://stream.binance.us:9443'
-      });
+      this.binanceClient = new Spot(
+        process.env.BINANCE_API_KEY!,
+        process.env.BINANCE_API_SECRET!,
+        {
+          baseURL: 'https://api.binance.us',
+          wsURL: 'wss://stream.binance.us:9443'
+        }
+      );
       
       console.log('✅ Cliente de Binance.US inicializado');
     } catch (error) {
@@ -133,7 +134,8 @@ export class AITradingBot {
   }
 
   private initializeWebSocket(pair: string): void {
-    const ws = new WebSocket(`wss://stream.binance.us:9443/ws/${pair.toLowerCase()}@kline_1m`);
+    const cleanPair = pair.toLowerCase().replace('/', '');
+    const ws = new WebSocket(`wss://stream.binance.us:9443/ws/${cleanPair}@kline_1m`);
     
     ws.on('message', (data) => {
       const message = JSON.parse(data.toString());
@@ -145,7 +147,13 @@ export class AITradingBot {
       this.reconnectWebSocket(pair);
     });
 
+    ws.on('close', () => {
+      console.log(`📡 WebSocket cerrado para ${pair} - intentando reconexión...`);
+      setTimeout(() => this.reconnectWebSocket(pair), 5000);
+    });
+
     this.websockets.set(pair, ws);
+    console.log(`📡 WebSocket iniciado para ${pair}`);
   }
 
   private async startTradingCycle(pairs: string[]): Promise<void> {
@@ -226,9 +234,9 @@ export class AITradingBot {
         market_condition: marketCondition,
         sentiment: sentiment,
         technical_indicators: {
-          rsi: await this.technicalAnalysis.getRSI(marketData),
-          macd: await this.technicalAnalysis.getMACD(marketData),
-          stochastic: await this.technicalAnalysis.getStochastic(marketData)
+          rsi: this.technicalAnalysis.getTechnicalScore(marketData),
+          macd: this.technicalAnalysis.getTechnicalScore(marketData),
+          stochastic: this.technicalAnalysis.getTechnicalScore(marketData)
         }
       });
 
@@ -240,8 +248,8 @@ export class AITradingBot {
         
         // Validar la operación antes de ejecutar
         const [base, quote] = pair.split('/');
-        const ticker = await this.binanceClient.prices({ symbol: pair.replace('/', '') });
-        const currentPrice = parseFloat(ticker[pair.replace('/', '')]);
+        const ticker = await this.binanceClient.tickerPrice(pair.replace('/', ''));
+        const currentPrice = parseFloat(ticker.data.price);
         const quantity = (this.config.investment_amount / currentPrice).toFixed(6);
         
         if (await this.validateTrade(pair, signal.action, quantity)) {
@@ -280,9 +288,9 @@ export class AITradingBot {
 
   private async getOrderBook(symbol: string): Promise<OrderBook> {
     try {
-      const depth = await this.binanceClient.book({ symbol: symbol.replace('/', ''), limit: 20 });
+      const depth = await this.binanceClient.depth(symbol.replace('/', ''), { limit: 20 });
       
-      if (!depth.bids || !depth.asks || depth.bids.length < 10 || depth.asks.length < 10) {
+      if (!depth.data.bids || !depth.data.asks || depth.data.bids.length < 10 || depth.data.asks.length < 10) {
         console.log(`⚠️ Libro de órdenes insuficiente para ${symbol}`);
         return {
           buy_pressure: 0.5,
@@ -292,11 +300,11 @@ export class AITradingBot {
       }
 
       // Calcular presión compradora/vendedora
-      const bid_volume = depth.bids.slice(0, 10).reduce((sum, bid) => sum + parseFloat(bid.quantity), 0);
-      const ask_volume = depth.asks.slice(0, 10).reduce((sum, ask) => sum + parseFloat(ask.quantity), 0);
+      const bid_volume = depth.data.bids.slice(0, 10).reduce((sum, bid) => sum + parseFloat(bid[1]), 0);
+      const ask_volume = depth.data.asks.slice(0, 10).reduce((sum, ask) => sum + parseFloat(ask[1]), 0);
       
       const total_volume = bid_volume + ask_volume;
-      const spread = ((parseFloat(depth.asks[0].price) - parseFloat(depth.bids[0].price)) / parseFloat(depth.bids[0].price)) * 100;
+      const spread = ((parseFloat(depth.data.asks[0][0]) - parseFloat(depth.data.bids[0][0])) / parseFloat(depth.data.bids[0][0])) * 100;
 
       // No operar si el spread es muy alto
       if (spread > this.config.max_spread_percent) {
@@ -385,20 +393,41 @@ export class AITradingBot {
         return 0.0;
       }
 
-      const prompt = this.createPrompt(data);
+      const prompt = `Analiza los siguientes datos de mercado de ${data.symbol} y devuelve un número entre -1 y 1 que represente el sentimiento:
+
+Datos técnicos:
+- Precio actual: $${data.last_price.toFixed(2)}
+- Volumen 24h: ${data.data[data.data.length - 1].volume.toFixed(2)}
+- Cambio % 24h: ${((data.last_price - data.data[0].close) / data.data[0].close * 100).toFixed(2)}%
+- Máximo 24h: $${Math.max(...data.data.map(d => d.high)).toFixed(2)}
+- Mínimo 24h: $${Math.min(...data.data.map(d => d.low)).toFixed(2)}
+
+Guía de sentimiento:
+-1.0 = Extremadamente bearish (vender inmediatamente)
+-0.7 = Muy bearish
+-0.3 = Ligeramente bearish
+0.0 = Neutral
+0.3 = Ligeramente bullish
+0.7 = Muy bullish
+1.0 = Extremadamente bullish (comprar inmediatamente)
+
+Responde SOLO con el número, sin explicación ni texto adicional.`;
+
       console.log('🤖 Enviando análisis a Claude...');
+      console.log('📝 Prompt:', prompt);
 
       try {
-        const response = await this.anthropicClient.messages.create({
+        const response = await this.anthropicClient.beta.messages.create({
           model: "claude-3-opus-20240229",
           max_tokens: 1000,
           messages: [{
             role: "user",
             content: prompt
-          }]
+          }],
+          temperature: 0.5
         });
 
-        if (!response || !response.content || !response.content[0]) {
+        if (!response || !response.content || response.content.length === 0) {
           console.log('⚠️ Respuesta de Claude inválida - usando sentimiento neutral');
           return 0.0;
         }
@@ -409,7 +438,7 @@ export class AITradingBot {
           return 0.0;
         }
 
-        console.log(`✅ Análisis de Claude recibido: ${sentiment}`);
+        console.log(`✅ Análisis de Claude recibido: ${sentiment} (${this.interpretSentiment(sentiment)})`);
         return Math.max(Math.min(sentiment, 1.0), -1.0);
 
       } catch (error) {
@@ -421,36 +450,6 @@ export class AITradingBot {
       console.error('❌ Error general en análisis de Claude:', error);
       return 0.0;
     }
-  }
-
-  private createPrompt(data: MarketData): string {
-    return `
-    Analiza el sentimiento del mercado para ${data.symbol} y responde SOLO con un número entre -1 y 1.
-    
-    Datos actuales:
-    - Precio: $${data.last_price.toFixed(2)}
-    - Volumen 24h: ${data.data[data.data.length - 1].volume.toFixed(2)}
-    - Cambio 24h: ${((data.last_price - data.data[0].close) / data.data[0].close * 100).toFixed(2)}%
-    
-    Donde:
-    -1.0 = extremadamente bearish (vender inmediatamente)
-    -0.7 = muy bearish
-    -0.3 = ligeramente bearish
-    0.0 = neutral
-    0.3 = ligeramente bullish
-    0.7 = muy bullish
-    1.0 = extremadamente bullish (comprar inmediatamente)
-    
-    Considera:
-    - Sobreventa si RSI < 30
-    - Sobrecompra si RSI > 70
-    - MACD por encima de Signal es bullish
-    - ADX > 25 indica tendencia fuerte
-    - CCI < -100 indica sobreventa
-    - CCI > 100 indica sobrecompra
-    
-    Responde SOLO con el número, sin explicación ni texto adicional.
-    `;
   }
 
   private calculateTradeSignal(
@@ -520,9 +519,9 @@ export class AITradingBot {
       };
 
     } catch (error) {
-      console.error(`❌ Error calculando señal:`, error);
+      console.error(`❌ Error calculando señal de trading: ${error}`);
       return {
-        action: "ERROR",
+        action: "ESPERAR",
         confidence: 0.0
       };
     }
@@ -544,114 +543,20 @@ export class AITradingBot {
     }
   }
 
-  private async executeTrade(pair: string, signal: TradeSignal): Promise<void> {
-    try {
-      console.log(`\n🔄 Ejecutando operación para ${pair}...`);
-      await this.logToFile(`🔄 Ejecutando operación para ${pair}...`);
-
-      // Obtener balance actual
-      const balances = await this.binanceClient.accountInfo();
-      if (!balances) {
-        throw new Error('No se pudo obtener información de la cuenta');
-      }
-
-      // Separar el par en base/quote (ej: BTC/USDT -> base=BTC, quote=USDT)
-      const [base, quote] = pair.split('/');
-      
-      // Obtener precios actuales
-      const ticker = await this.binanceClient.prices({ symbol: pair.replace('/', '') });
-      const currentPrice = parseFloat(ticker[pair.replace('/', '')]);
-
-      // Calcular cantidad a operar
-      const investment = this.config.investment_amount;
-      const quantity = (investment / currentPrice).toFixed(6);
-
-      // Verificar saldo suficiente
-      const quoteBalance = balances.balances.find(b => b.asset === quote);
-      const baseBalance = balances.balances.find(b => b.asset === base);
-
-      if (!quoteBalance || !baseBalance) {
-        throw new Error(`No se encontró balance para ${quote} o ${base}`);
-      }
-
-      // Logs de balances
-      console.log(`💰 Balance ${quote}: ${parseFloat(quoteBalance.free).toFixed(2)}`);
-      console.log(`💰 Balance ${base}: ${parseFloat(baseBalance.free).toFixed(8)}`);
-      await this.logToFile(`💰 Balances - ${quote}: ${parseFloat(quoteBalance.free).toFixed(2)}, ${base}: ${parseFloat(baseBalance.free).toFixed(8)}`);
-
-      let order;
-      if (signal.action === 'COMPRAR') {
-        // Verificar saldo suficiente en quote
-        if (parseFloat(quoteBalance.free) < investment) {
-          throw new Error(`Saldo insuficiente en ${quote} para comprar`);
-        }
-
-        // Crear orden de compra
-        order = await this.binanceClient.order({
-          symbol: pair.replace('/', ''),
-          side: 'BUY',
-          type: 'MARKET',
-          quantity: quantity
-        });
-
-        console.log(`✅ Orden de compra ejecutada - Cantidad: ${quantity} ${base} a ${currentPrice} ${quote}`);
-        await this.logToFile(`✅ Orden de compra ejecutada - Cantidad: ${quantity} ${base} a ${currentPrice} ${quote}`);
-
-      } else if (signal.action === 'VENDER') {
-        // Verificar saldo suficiente en base
-        if (parseFloat(baseBalance.free) < parseFloat(quantity)) {
-          throw new Error(`Saldo insuficiente en ${base} para vender`);
-        }
-
-        // Crear orden de venta
-        order = await this.binanceClient.order({
-          symbol: pair.replace('/', ''),
-          side: 'SELL',
-          type: 'MARKET',
-          quantity: quantity
-        });
-
-        console.log(`✅ Orden de venta ejecutada - Cantidad: ${quantity} ${base} a ${currentPrice} ${quote}`);
-        await this.logToFile(`✅ Orden de venta ejecutada - Cantidad: ${quantity} ${base} a ${currentPrice} ${quote}`);
-      }
-
-      // Guardar operación en Firebase
-      if (order) {
-        await this.cache.saveTradeHistory({
-          symbol: pair,
-          timestamp: Date.now(),
-          type: signal.action,
-          price: currentPrice,
-          quantity: quantity,
-          total: (currentPrice * parseFloat(quantity)).toFixed(2),
-          order_id: order.orderId,
-          status: order.status,
-          confidence: signal.confidence
-        });
-      }
-
-    } catch (error) {
-      const errorMsg = `❌ Error ejecutando operación: ${error}`;
-      console.error(errorMsg);
-      await this.logToFile(errorMsg);
-      
-      // Notificar el error
-      console.error('⚠️ Se requiere atención manual para resolver el error de trading');
-    }
-  }
-
   private async validateTrade(pair: string, action: 'COMPRAR' | 'VENDER', quantity: string): Promise<boolean> {
     try {
-      // Obtener reglas de trading del par
-      const exchangeInfo = await this.binanceClient.exchangeInfo();
-      const symbolInfo = exchangeInfo.symbols.find(s => s.symbol === pair.replace('/', ''));
-
-      if (!symbolInfo) {
+      const symbol = pair.replace('/', '');
+      const exchangeInfo = await this.binanceClient.exchangeInfo({ symbol });
+      
+      if (!exchangeInfo.data.symbols || exchangeInfo.data.symbols.length === 0) {
         throw new Error(`Par ${pair} no encontrado en reglas de trading`);
       }
 
+      const symbolInfo = exchangeInfo.data.symbols[0];
+      const filters = symbolInfo.filters;
+
       // Validar cantidad mínima
-      const lotSize = symbolInfo.filters.find(f => f.filterType === 'LOT_SIZE');
+      const lotSize = filters.find(f => f.filterType === 'LOT_SIZE');
       if (lotSize) {
         const minQty = parseFloat(lotSize.minQty);
         if (parseFloat(quantity) < minQty) {
@@ -660,10 +565,10 @@ export class AITradingBot {
       }
 
       // Validar precio mínimo de orden
-      const minNotional = symbolInfo.filters.find(f => f.filterType === 'MIN_NOTIONAL');
+      const minNotional = filters.find(f => f.filterType === 'MIN_NOTIONAL');
       if (minNotional) {
-        const ticker = await this.binanceClient.prices({ symbol: pair.replace('/', '') });
-        const currentPrice = parseFloat(ticker[pair.replace('/', '')]);
+        const ticker = await this.binanceClient.tickerPrice(symbol);
+        const currentPrice = parseFloat(ticker.data.price);
         const orderValue = currentPrice * parseFloat(quantity);
         
         if (orderValue < parseFloat(minNotional.minNotional)) {
@@ -678,5 +583,25 @@ export class AITradingBot {
     }
   }
 
-  // ... (más métodos implementados en archivos separados)
-} 
+  private async executeTrade(pair: string, signal: TradeSignal): Promise<void> {
+    try {
+      const [base, quote] = pair.split('/');
+      const symbol = pair.replace('/', '');
+      const ticker = await this.binanceClient.tickerPrice(symbol);
+      const currentPrice = parseFloat(ticker.data.price);
+      const quantity = (this.config.investment_amount / currentPrice).toFixed(6);
+
+      if (signal.action === 'COMPRAR') {
+        await this.binanceClient.newOrder(symbol, 'BUY', 'MARKET', {
+          quantity: quantity
+        });
+      } else if (signal.action === 'VENDER') {
+        await this.binanceClient.newOrder(symbol, 'SELL', 'MARKET', {
+          quantity: quantity
+        });
+      }
+    } catch (error) {
+      console.error(`Error ejecutando operación: ${error}`);
+    }
+  }
+}
