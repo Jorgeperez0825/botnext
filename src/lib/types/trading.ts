@@ -14,28 +14,24 @@ export type MarketCondition = z.infer<typeof MarketConditionSchema>;
 export interface TradeSignal {
   action: 'COMPRAR' | 'VENDER' | 'ESPERAR' | 'ERROR';
   confidence: number;
+  timestamp?: number;
 }
 
 export interface MarketData {
   symbol: string;
-  data: {
-    timestamp: number;
-    open: number;
-    high: number;
-    low: number;
-    close: number;
-    volume: number;
-    RSI?: number;
-    MACD?: number;
-    Signal?: number;
-    StochRSI?: number;
-    ADX?: number;
-    CCI?: number;
-    ROC?: number;
-  }[];
   last_price: number;
-  timestamp: Date;
+  data: Candle[];
+  timestamp: number;
   candles_count: number;
+}
+
+export interface Candle {
+  timestamp: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
 }
 
 export interface OrderBook {
@@ -44,19 +40,23 @@ export interface OrderBook {
   spread: number;
 }
 
-export interface BacktestResult {
-  total_trades: number;
-  win_rate: number;
-  avg_profit: number;
-  max_drawdown: number;
-  trades: Trade[];
+export interface Trade {
+  symbol: string;
+  type: 'BUY' | 'SELL';
+  quantity: number;
+  price: number;
+  total: number;
+  timestamp: number;
+  orderId: number;
 }
 
-export interface Trade {
-  type: 'BUY' | 'SELL';
-  price: number;
-  timestamp: Date;
-  profit?: number;
+export interface BacktestResult {
+  trades: Trade[];
+  profit_loss: number;
+  win_rate: number;
+  avg_profit: number;
+  avg_loss: number;
+  max_drawdown: number;
 }
 
 export interface BotConfig {

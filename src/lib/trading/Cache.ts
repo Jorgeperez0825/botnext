@@ -2,12 +2,19 @@ import { initializeApp } from 'firebase/app';
 import { getDatabase, ref, set, get, child } from 'firebase/database';
 import { getAnalytics } from "firebase/analytics";
 import { MarketData, Candle, Trade, TradeSignal } from '../types/trading';
+import { Spot } from '@binance/connector';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 export class Cache {
   private db;
   private analytics;
   private readonly MAX_CANDLES = 1000;
   private marketData: Map<string, MarketData>;
+  private signalHistoryCache: Map<string, TradeSignal[]>;
+  private tradeHistoryCache: Map<string, Trade[]>;
+  private cacheDir: string;
 
   constructor() {
     // Configurar Firebase
@@ -24,6 +31,8 @@ export class Cache {
     const app = initializeApp(firebaseConfig);
     this.db = getDatabase(app);
     this.marketData = new Map();
+    this.signalHistoryCache = new Map();
+    this.tradeHistoryCache = new Map();
     
     // Inicializar Analytics si estamos en el navegador
     if (typeof window !== 'undefined') {
@@ -32,47 +41,43 @@ export class Cache {
     }
     
     console.log('✅ Firebase inicializado correctamente');
+
+    // Configurar directorio de caché
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    this.cacheDir = path.join(__dirname, '../../../cache');
+    
+    // Crear directorio si no existe
+    if (!fs.existsSync(this.cacheDir)) {
+      fs.mkdirSync(this.cacheDir, { recursive: true });
+    }
   }
 
-  public async loadHistoricalData(symbol: string, binanceClient: any): Promise<void> {
+  public async loadHistoricalData(symbol: string, client: Spot): Promise<Candle[]> {
     try {
       console.log(`📊 Cargando datos históricos para ${symbol}...`);
       
-      // Obtener las últimas 120 velas de 1 minuto
-      const klines = await binanceClient.klines(symbol.replace('/', ''), '1m', { limit: 120 });
+      // Obtener datos de las últimas 120 velas de 1 minuto
+      const klines = await client.klines(symbol.replace('/', ''), '1m', { limit: 120 });
       
       if (!klines.data || klines.data.length === 0) {
-        throw new Error('No se obtuvieron datos históricos');
+        throw new Error(`No se pudieron obtener datos históricos para ${symbol}`);
       }
 
-      console.log(`✅ ${klines.data.length} velas cargadas para ${symbol}`);
-
-      const candles = klines.data.map(k => ({
-        timestamp: k[0],
-        open: parseFloat(k[1]),
-        high: parseFloat(k[2]),
-        low: parseFloat(k[3]),
-        close: parseFloat(k[4]),
-        volume: parseFloat(k[5])
+      const candles: Candle[] = klines.data.map((kline: any) => ({
+        timestamp: kline[0],
+        open: parseFloat(kline[1]),
+        high: parseFloat(kline[2]),
+        low: parseFloat(kline[3]),
+        close: parseFloat(kline[4]),
+        volume: parseFloat(kline[5])
       }));
 
-      const marketData: MarketData = {
-        symbol,
-        last_price: candles[candles.length - 1].close,
-        last_update: Date.now(),
-        data: candles
-      };
-
-      // Guardar en caché local
-      this.marketData.set(symbol, marketData);
-
-      // Guardar en Firebase
-      await this.saveMarketData(symbol, marketData);
-
-      console.log(`✅ Datos inicializados para ${symbol}`);
+      console.log(`✅ ${candles.length} velas cargadas para ${symbol}`);
+      return candles;
     } catch (error) {
       console.error(`❌ Error cargando datos históricos para ${symbol}:`, error);
-      throw error;
+      return [];
     }
   }
 
@@ -141,45 +146,67 @@ export class Cache {
     }
   }
 
-  public async saveSignalHistory(signal: any): Promise<void> {
-    try {
-      const signalRef = ref(this.db, `signals/${signal.symbol.toLowerCase()}/${signal.timestamp}`);
-      await set(signalRef, signal);
-    } catch (error) {
-      console.error('❌ Error guardando señal en Firebase:', error);
+  public async saveSignalHistory(signal: TradeSignal & { symbol: string }): Promise<void> {
+    const history = this.signalHistoryCache.get(signal.symbol) || [];
+    history.push(signal);
+    
+    // Mantener solo las últimas 100 señales
+    if (history.length > 100) {
+      history.shift();
     }
+    
+    this.signalHistoryCache.set(signal.symbol, history);
+    await this.saveToFile('signals', signal.symbol, history);
+  }
+
+  public async getSignalHistory(symbol: string): Promise<TradeSignal[]> {
+    if (!this.signalHistoryCache.has(symbol)) {
+      const history = await this.loadFromFile('signals', symbol);
+      this.signalHistoryCache.set(symbol, history || []);
+    }
+    return this.signalHistoryCache.get(symbol) || [];
   }
 
   public async saveTradeHistory(trade: Trade): Promise<void> {
+    const history = this.tradeHistoryCache.get(trade.symbol) || [];
+    history.push(trade);
+    
+    // Mantener solo los últimos 100 trades
+    if (history.length > 100) {
+      history.shift();
+    }
+    
+    this.tradeHistoryCache.set(trade.symbol, history);
+    await this.saveToFile('trades', trade.symbol, history);
+  }
+
+  public async getTradeHistory(symbol: string): Promise<Trade[]> {
+    if (!this.tradeHistoryCache.has(symbol)) {
+      const history = await this.loadFromFile('trades', symbol);
+      this.tradeHistoryCache.set(symbol, history || []);
+    }
+    return this.tradeHistoryCache.get(symbol) || [];
+  }
+
+  private async saveToFile(type: string, symbol: string, data: any[]): Promise<void> {
     try {
-      const tradeRef = ref(this.db, `trades/${trade.symbol.toLowerCase()}/${trade.timestamp}`);
-      await set(tradeRef, trade);
+      const filename = path.join(this.cacheDir, `${type}_${symbol.toLowerCase()}.json`);
+      await fs.promises.writeFile(filename, JSON.stringify(data, null, 2));
     } catch (error) {
-      console.error('❌ Error guardando operación en Firebase:', error);
+      console.error(`Error guardando caché para ${symbol}:`, error);
     }
   }
 
-  // Métodos adicionales para trading
-
-  public async getTradeHistory(symbol: string): Promise<any[]> {
+  private async loadFromFile(type: string, symbol: string): Promise<any[]> {
     try {
-      const path = `trades/${symbol.toLowerCase()}`;
-      const snapshot = await get(child(ref(this.db), path));
-      return snapshot.exists() ? Object.values(snapshot.val()) : [];
+      const filename = path.join(this.cacheDir, `${type}_${symbol.toLowerCase()}.json`);
+      if (fs.existsSync(filename)) {
+        const data = await fs.promises.readFile(filename, 'utf8');
+        return JSON.parse(data);
+      }
     } catch (error) {
-      console.error('❌ Error obteniendo historial de trading:', error);
-      return [];
+      console.error(`Error cargando caché para ${symbol}:`, error);
     }
-  }
-
-  public async getSignalHistory(symbol: string): Promise<any[]> {
-    try {
-      const path = `signals/${symbol.toLowerCase()}`;
-      const snapshot = await get(child(ref(this.db), path));
-      return snapshot.exists() ? Object.values(snapshot.val()) : [];
-    } catch (error) {
-      console.error('❌ Error obteniendo historial de señales:', error);
-      return [];
-    }
+    return [];
   }
 } 
